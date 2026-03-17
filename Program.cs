@@ -7,8 +7,7 @@ using EIDRomania.SDK.Api;
 /// Demonstrates:
 ///   - SDK initialization with a license key
 ///   - Listing connected PC/SC readers
-///   - Reading a Romanian eID card with CAN only (MRTD data + photo)
-///   - Reading a Romanian eID card with CAN + PIN (full data including address)
+///   - Reading a Romanian eID card with CAN + PIN (full data: MRZ, photo, address)
 ///   - Typed error handling for every failure scenario
 ///   - Progress callbacks
 ///
@@ -23,7 +22,7 @@ using EIDRomania.SDK.Api;
 
 // Replace with your actual license key issued by Up2Date Software SRL.
 // For testing, contact: office@up2date.ro
-const string LICENSE_KEY = "YOUR_LICENSE_KEY_HERE";
+const string LICENSE_KEY = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJSb21hbmlhbkVJRFNESyIsInN1YiI6ImNvbS5leGFtcGxlLmVpZCIsImlhdCI6MTc3MzY1OTg0MiwiZXhwIjoxNzc4ODQzODQyLCJqdGkiOiJlODI4ZGE0NS1jOGE2LTRjOTEtYjk5NS03MDFjOTVmYmI0NzkiLCJidW5kbGVJZCI6ImNvbS5leGFtcGxlLmVpZCIsImNvbXBhbnkiOiJUZXN0IiwiZmVhdHVyZXMiOlsicGFzc3BvcnRSZWFkaW5nIiwiaWRDYXJkUmVhZGluZyIsIm9jclNjYW5uaW5nIiwiY3NjYVZhbGlkYXRpb24iLCJiaW9tZXRyaWNFeHRyYWN0aW9uIiwiYWR2YW5jZWRTZWN1cml0eSJdLCJ0eXBlIjoiZGV2ZWxvcG1lbnQiLCJ2ZXJzaW9uIjoiMS4wIiwibWF4RGV2aWNlcyI6MTAwMH0.I8PP8Tnn74wOSi2-OCSdqUl3XH0k5JFZ5dT91x0_4fRNt8I-uES7T5BwjeQYmm1oUVBwD3PNBfi999m-0ILJt2aqP1k9AGWUHp3W_o6CJdn0PwTbIcdt3SsKnXIyTh2ZjTmRx2MK57LiSUpf0iet3QzDDmpR9lDJYUkvvSq8uZ2JO-mYSkJEtPkjt0xg5SYyX7wf8V1MDWFxXtrGkdmj59htoiXlPOonzYgc9RLhCD7a25ZdK_zFj4-FC9hsUiEWI0WfJQSfioCh0iILQPz4C7PreJI09HiB-qbrLE6BmloTpvyAK8KY6gyWroCisURpHOIILf7bsneePIibOq2PAA";
 const string APP_IDENTIFIER = "com.example.eid";
 
 Console.WriteLine("=================================================");
@@ -36,7 +35,7 @@ using var sdk = new EIDRomaniaSdk();
 try
 {
     // ── Step 1: Initialize ──────────────────────────────────────────────────
-    Console.WriteLine("[1/4] Initializing SDK...");
+    Console.WriteLine("[1/3] Initializing SDK...");
     sdk.Initialize(LICENSE_KEY, APP_IDENTIFIER);
 
     if (sdk.LicenseInfo != null)
@@ -47,7 +46,7 @@ try
 
     // ── Step 2: List readers ────────────────────────────────────────────────
     Console.WriteLine();
-    Console.WriteLine("[2/4] Listing PC/SC readers...");
+    Console.WriteLine("[2/3] Listing PC/SC readers...");
     var readers = sdk.AvailableReaders;
 
     Console.WriteLine($"      Found {readers.Count} reader(s):");
@@ -70,49 +69,34 @@ try
     Console.WriteLine($"      Using reader index: {selectedIndex}");
     sdk.SetActiveReader(selectedIndex);
 
-    // ── Step 3: Read card with CAN only ─────────────────────────────────────
+    // ── Step 3: Read full card (CAN + PIN) ──────────────────────────────────
     Console.WriteLine();
-    Console.Write("[3/4] Enter CAN (6 digits from card front, or press Enter to skip): ");
+    Console.Write("[3/3] Enter CAN (6 digits from card front): ");
     var can = Console.ReadLine()?.Trim() ?? "";
 
-    if (!string.IsNullOrEmpty(can))
+    Console.Write("      Enter PIN (4 digits): ");
+    var pin = Console.ReadLine()?.Trim() ?? "";
+
+    if (string.IsNullOrEmpty(can) || string.IsNullOrEmpty(pin))
     {
-        Console.WriteLine("      Reading card with CAN only (MRTD data + face photo)...");
-        Console.WriteLine("      Keep the card on the reader until reading is complete.");
-        Console.WriteLine();
-
-        var card = await sdk.ReadAsync(can, null, (msg, pct) =>
-        {
-            Console.Write($"\r      [{pct,3}%] {msg,-50}");
-        });
-        Console.WriteLine();
-        Console.WriteLine();
-
-        Console.WriteLine("-- CAN-only read result ----------------------------------------");
-        PrintCard(card);
-
-        // ── Step 4: Read card with CAN + PIN ────────────────────────────────
-        Console.WriteLine();
-        Console.Write("[4/4] Enter PIN (4 digits) for full data (or press Enter to skip): ");
-        var pin = Console.ReadLine()?.Trim() ?? "";
-
-        if (!string.IsNullOrEmpty(pin))
-        {
-            Console.WriteLine("      Reading card with CAN + PIN (full data including address)...");
-            Console.WriteLine("      Keep the card on the reader until reading is complete.");
-            Console.WriteLine();
-
-            var fullCard = await sdk.ReadAsync(can, pin, (msg, pct) =>
-            {
-                Console.Write($"\r      [{pct,3}%] {msg,-50}");
-            });
-            Console.WriteLine();
-            Console.WriteLine();
-
-            Console.WriteLine("-- CAN+PIN read result -----------------------------------------");
-            PrintCard(fullCard);
-        }
+        Console.Error.WriteLine("      CAN and PIN are required for full card reading.");
+        return;
     }
+
+    Console.WriteLine();
+    Console.WriteLine("      Reading full card (MRTD + National App)...");
+    Console.WriteLine("      Keep the card on the reader until reading is complete.");
+    Console.WriteLine();
+
+    var card = await sdk.ReadAsync(can, pin, (msg, pct) =>
+    {
+        Console.Write($"\r      [{pct,3}%] {msg,-50}");
+    });
+    Console.WriteLine();
+    Console.WriteLine();
+
+    Console.WriteLine("-- Full card read result ----------------------------------------");
+    PrintCard(card);
 }
 catch (EIDReadException ex)
 {
